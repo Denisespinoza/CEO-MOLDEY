@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import GlobalSearch from './GlobalSearch';
 
-type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes' | 'packs';
+type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'agenda-moldey' | 'ai-assistant' | 'users' | 'notes' | 'packs';
 
 interface LayoutProps {
   currentPage: Page;
@@ -47,7 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { page: 'orders', label: 'Pedidos', icon: ClipboardList },
   { page: 'clients', label: 'Clientes', icon: Users },
   { page: 'packs', label: 'Packs Moldey', icon: ShoppingBag },
-  { page: 'agenda', label: 'Agenda', icon: CalendarDays, hiddenForPending: true },
+  { page: 'agenda-moldey', label: 'Agenda Moldey', icon: CalendarDays, hiddenForPending: true },
   { page: 'ai-assistant', label: 'Asistente IA', icon: Bot, hiddenForPending: true },
   { page: 'catalog', label: 'Catálogo Interno', icon: ImageIcon },
   { page: 'personal', label: 'Personal', icon: UserCog },

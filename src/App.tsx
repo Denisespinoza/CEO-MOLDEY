@@ -12,12 +12,13 @@ import InternalCatalog from './pages/InternalCatalog';
 import PacksMoldey from './pages/PacksMoldey';
 import Personal from './pages/Personal';
 import Agenda from './pages/Agenda';
+import AgendaMoldey from './pages/AgendaMoldey';
 import AiAssistant from './pages/AiAssistant';
 import UserManagement from './pages/UserManagement';
 import Notes from './pages/Notes';
 import Login from './pages/Login';
 
-type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes' | 'packs';
+type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'agenda-moldey' | 'ai-assistant' | 'users' | 'notes' | 'packs';
 
 function AppContent() {
   const { user, profile, isAdmin, loading, signOut } = useAuth();
@@ -77,6 +78,8 @@ function AppContent() {
         return <Personal userRole={profile?.role} />;
       case 'agenda':
         return <Agenda />;
+      case 'agenda-moldey':
+        return <AgendaMoldey />;
       case 'ai-assistant':
         return <AiAssistant />;
       case 'users':
