@@ -27,8 +27,10 @@ import {
 type ActiveView = 'kanban' | 'kanban-op' | 'lista' | 'lanzamientos' | 'campanas' | 'produccion' | 'pedidos' | 'gratis' | 'ventas';
 
 // ─── KANBAN OP Types ──────────────────────────────────────────────────────────
-type OpStatus = 'pendiente' | 'en_proceso' | 'en_revision' | 'esperando' | 'terminado';
+type OpStatus = string; // string permite columnas fijas + columnas personalizadas
 type OpType = 'tarea_interna' | 'seguimiento' | 'correccion' | 'pedido_rapido' | 'administracion' | 'cliente' | 'producto' | 'publicacion' | 'otro';
+
+interface OpColumn { id: string; label: string; color: string; custom?: boolean; }
 
 interface OpTask {
   id: string;
@@ -43,13 +45,26 @@ interface OpTask {
   created_at: string;
 }
 
-const OP_COLUMNS: { id: OpStatus; label: string; color: string }[] = [
+const DEFAULT_OP_COLUMNS: OpColumn[] = [
   { id: 'pendiente',    label: 'Pendiente',    color: 'bg-carbon-800 border-carbon-600' },
   { id: 'en_proceso',   label: 'En proceso',   color: 'bg-blue-900/30 border-blue-700/40' },
   { id: 'en_revision',  label: 'En revisión',  color: 'bg-amber-900/20 border-amber-700/30' },
   { id: 'esperando',    label: 'Esperando',    color: 'bg-navy-700 border-navy-500' },
   { id: 'terminado',    label: 'Terminado',    color: 'bg-emerald-900/20 border-emerald-700/30' },
 ];
+
+// localStorage helpers para columnas custom
+const OP_COLS_KEY = 'moldey_op_columns';
+function getCustomOpColumns(): OpColumn[] {
+  try { return JSON.parse(localStorage.getItem(OP_COLS_KEY) ?? '[]'); } catch { return []; }
+}
+function saveCustomOpColumns(cols: OpColumn[]) { localStorage.setItem(OP_COLS_KEY, JSON.stringify(cols)); }
+function addCustomOpColumn(label: string): OpColumn {
+  const col: OpColumn = { id: `custom_${Date.now()}`, label, color: 'bg-violet-900/20 border-violet-700/30', custom: true };
+  saveCustomOpColumns([...getCustomOpColumns(), col]);
+  return col;
+}
+function deleteCustomOpColumn(id: string) { saveCustomOpColumns(getCustomOpColumns().filter(c => c.id !== id)); }
 
 const OP_TYPE_LABELS: Record<OpType, string> = {
   tarea_interna: 'Tarea interna', seguimiento: 'Seguimiento', correccion: 'Corrección',
@@ -61,6 +76,11 @@ const EMPTY_OP_TASK: Omit<OpTask, 'id' | 'created_at'> = {
   title: '', description: '', priority: 'media', status: 'pendiente',
   due_date: null, responsible: '', simple_type: 'tarea_interna', notes: '',
 };
+
+// Combina columnas fijas + custom en un array
+function getAllOpColumns(): OpColumn[] {
+  return [...DEFAULT_OP_COLUMNS, ...getCustomOpColumns()];
+}
 
 // ─── KANBAN OP localStorage helpers ──────────────────────────────────────────
 const OP_KEY = 'moldey_op_tasks';
@@ -1389,9 +1409,9 @@ function OpTaskModal({ task, defaultStatus, onClose, onSave }: {
               </select>
             </div>
             <div>
-              <label className={LABEL_CLS}>Estado</label>
-              <select className={INPUT_CLS} value={form.status} onChange={e => set('status', e.target.value as OpStatus)}>
-                {OP_COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              <label className={LABEL_CLS}>Estado / Columna</label>
+              <select className={INPUT_CLS} value={form.status} onChange={e => set('status', e.target.value)}>
+                {getAllOpColumns().map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
             <div>
@@ -1426,43 +1446,76 @@ function OpTaskModal({ task, defaultStatus, onClose, onSave }: {
 }
 
 // ─── KANBAN OP VIEW ───────────────────────────────────────────────────────────
-function KanbanOpView({ tasks, onEdit, onDelete, onAddToColumn }: {
+function KanbanOpView({ tasks, onEdit, onDelete, onAddToColumn, onColumnsChange }: {
   tasks: OpTask[];
   onEdit: (t: OpTask) => void;
   onDelete: (id: string) => void;
   onAddToColumn: (status: OpStatus) => void;
+  onColumnsChange: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const [allCols, setAllCols] = useState<OpColumn[]>(getAllOpColumns());
+  const [addingCol, setAddingCol] = useState(false);
+  const [newColName, setNewColName] = useState('');
 
-  if (tasks.length === 0 && OP_COLUMNS.every(c => true)) {
-    // Still show columns even when empty
-  }
+  const refreshCols = () => setAllCols(getAllOpColumns());
+
+  const handleAddColumn = () => {
+    if (!newColName.trim()) return;
+    addCustomOpColumn(newColName.trim());
+    setNewColName('');
+    setAddingCol(false);
+    refreshCols();
+    onColumnsChange();
+  };
+
+  const handleDeleteColumn = (col: OpColumn) => {
+    if (!col.custom) return;
+    if (!confirm(`¿Eliminar la columna "${col.label}"? Las tareas en esa columna quedarán sin estado.`)) return;
+    deleteCustomOpColumn(col.id);
+    refreshCols();
+    onColumnsChange();
+  };
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-carbon-500 italic">Kanban operativo para tareas del día a día — rápido y simple.</p>
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {OP_COLUMNS.map(col => {
+      <div className="flex gap-4 overflow-x-auto pb-6 items-start">
+
+        {/* Columnas existentes */}
+        {allCols.map(col => {
           const colTasks = tasks.filter(t => t.status === col.id);
           return (
-            <div key={col.id} className={`flex-shrink-0 w-60 rounded-xl border ${col.color} p-3 flex flex-col gap-2`}>
-              <div className="flex items-center justify-between mb-1">
+            <div key={col.id} className={`flex-shrink-0 w-64 rounded-xl border ${col.color} p-3 flex flex-col`} style={{ minHeight: '520px' }}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-white uppercase tracking-wide">{col.label}</span>
-                <span className="text-xs bg-navy-800 text-carbon-400 px-1.5 py-0.5 rounded-full">{colTasks.length}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs bg-navy-800 text-carbon-400 px-1.5 py-0.5 rounded-full">{colTasks.length}</span>
+                  {col.custom && (
+                    <button
+                      onClick={() => handleDeleteColumn(col)}
+                      className="text-carbon-600 hover:text-red-400 transition-colors"
+                      title="Eliminar columna"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex flex-col gap-2 min-h-[50px]">
+              {/* Tarjetas */}
+              <div className="flex flex-col gap-2 flex-1">
                 {colTasks.length === 0 && (
-                  <p className="text-xs text-carbon-600 text-center py-3 italic">Sin tareas</p>
+                  <div className="flex items-center justify-center flex-1">
+                    <p className="text-xs text-carbon-700 italic">Sin tareas</p>
+                  </div>
                 )}
                 {colTasks.map(task => {
                   const pc = PRIORITY_CONFIG[task.priority];
                   const overdue = task.due_date && task.due_date < today && col.id !== 'terminado';
                   return (
-                    <div
-                      key={task.id}
-                      className="bg-navy-800 border border-navy-600 hover:border-gold-500/40 rounded-lg p-2.5 group"
-                    >
+                    <div key={task.id} className="bg-navy-800 border border-navy-600 hover:border-gold-500/40 rounded-lg p-2.5 group transition-all">
                       <div className="flex items-start justify-between gap-1 mb-1">
                         <p className="text-white text-xs font-semibold leading-snug group-hover:text-gold-300 transition-colors flex-1">{task.title}</p>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -1470,14 +1523,17 @@ function KanbanOpView({ tasks, onEdit, onDelete, onAddToColumn }: {
                           <button onClick={() => { if (confirm('¿Eliminar esta tarea?')) onDelete(task.id); }} className="text-carbon-500 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
                         </div>
                       </div>
+                      {task.description && (
+                        <p className="text-[10px] text-carbon-500 mb-1 line-clamp-2">{task.description}</p>
+                      )}
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className={`w-1.5 h-1.5 rounded-full ${pc.dot}`} />
                         <span className={`text-[10px] ${pc.color}`}>{pc.label}</span>
-                        <span className="text-[10px] text-carbon-600">·</span>
+                        <span className="text-[10px] text-carbon-700">·</span>
                         <span className="text-[10px] text-carbon-500">{OP_TYPE_LABELS[task.simple_type]}</span>
                       </div>
                       {task.due_date && (
-                        <div className={`flex items-center gap-1 text-[10px] ${overdue ? 'text-red-400' : 'text-carbon-500'}`}>
+                        <div className={`flex items-center gap-1 text-[10px] ${overdue ? 'text-red-400 font-semibold' : 'text-carbon-500'}`}>
                           {overdue && <AlertCircle size={9} />}
                           <Clock size={9} />
                           {task.due_date}
@@ -1486,20 +1542,67 @@ function KanbanOpView({ tasks, onEdit, onDelete, onAddToColumn }: {
                       {task.responsible && (
                         <p className="text-[10px] text-carbon-500 mt-0.5">👤 {task.responsible}</p>
                       )}
+                      {task.notes && (
+                        <p className="text-[10px] text-carbon-600 mt-1 italic line-clamp-1">{task.notes}</p>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
+              {/* Botón agregar tarea */}
               <button
                 onClick={() => onAddToColumn(col.id)}
-                className="mt-1 flex items-center justify-center gap-1 text-xs text-carbon-500 hover:text-gold-400 transition-colors py-1.5 rounded-lg hover:bg-navy-700/50 border border-dashed border-navy-600 hover:border-gold-500/40"
+                className="mt-3 flex items-center justify-center gap-1 text-xs text-carbon-500 hover:text-gold-400 transition-colors py-2 rounded-lg hover:bg-navy-700/50 border border-dashed border-navy-600 hover:border-gold-500/40"
               >
-                <Plus size={12} /> Agregar
+                <Plus size={12} /> Agregar tarea
               </button>
             </div>
           );
         })}
+
+        {/* Botón + nueva columna */}
+        <div className="flex-shrink-0 flex flex-col gap-2" style={{ minHeight: '520px' }}>
+          {addingCol ? (
+            <div className="w-64 rounded-xl border-2 border-dashed border-gold-500/40 bg-navy-800/50 p-4 flex flex-col gap-3" style={{ minHeight: '160px' }}>
+              <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide">Nueva columna</p>
+              <input
+                autoFocus
+                className={INPUT_CLS}
+                placeholder="Nombre de la columna..."
+                value={newColName}
+                onChange={e => setNewColName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddColumn(); if (e.key === 'Escape') setAddingCol(false); }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddColumn}
+                  disabled={!newColName.trim()}
+                  className="flex-1 py-2 bg-gold-600 hover:bg-gold-500 disabled:opacity-40 text-navy-900 rounded-lg font-bold text-xs transition-colors"
+                >
+                  Crear columna
+                </button>
+                <button
+                  onClick={() => { setAddingCol(false); setNewColName(''); }}
+                  className="px-3 py-2 text-carbon-400 hover:text-white border border-navy-600 rounded-lg text-xs hover:bg-navy-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingCol(true)}
+              className="w-16 rounded-xl border-2 border-dashed border-navy-600 hover:border-gold-500/50 bg-navy-800/30 hover:bg-navy-800/60 flex flex-col items-center justify-center gap-2 transition-all text-carbon-600 hover:text-gold-400"
+              style={{ minHeight: '520px' }}
+              title="Agregar nueva columna"
+            >
+              <Plus size={20} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider writing-mode-vertical" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Nueva columna</span>
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   );
@@ -1885,6 +1988,7 @@ export default function AgendaMoldey() {
                 onEdit={t => { setEditingOpTask(t); setShowOpModal(true); }}
                 onDelete={handleDeleteOpTask}
                 onAddToColumn={status => { setEditingOpTask(null); setDefaultOpStatus(status); setShowOpModal(true); }}
+                onColumnsChange={loadOpTasks}
               />
             </div>
           )}
