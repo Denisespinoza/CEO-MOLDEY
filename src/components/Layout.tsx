@@ -84,7 +84,7 @@ export default function Layout({ currentPage, onNavigate, children, isAdmin = fa
   return (
     <div className="min-h-screen bg-gradient-to-br from-navy-900 via-carbon-900 to-navy-800 transition-colors duration-200">
       {/* Top bar */}
-      <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-navy-900/97 backdrop-blur-sm border-b border-gold-600/20 flex items-center px-4 gap-3 transition-colors duration-200">
+      <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-gradient-to-r from-navy-800 via-navy-700 to-navy-800 backdrop-blur-sm border-b border-gold-500/40 flex items-center px-4 gap-3 transition-colors duration-200 shadow-lg shadow-black/30">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="lg:hidden p-2 rounded-lg hover:bg-carbon-800 transition-colors"
@@ -92,11 +92,13 @@ export default function Layout({ currentPage, onNavigate, children, isAdmin = fa
           {sidebarOpen ? <X size={20} className="text-carbon-300" /> : <Menu size={20} className="text-gold-400" />}
         </button>
 
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNav('dashboard')}>
-          <Factory size={24} className="text-gold-400" />
+        <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => handleNav('dashboard')}>
+          <div className="flex items-center justify-center w-8 h-8 bg-gold-500 rounded-lg shadow-md shadow-gold-600/30">
+            <Factory size={18} className="text-navy-900" />
+          </div>
           <div className="flex flex-col">
-            <span className="text-lg font-bold text-white tracking-tight leading-tight">CEO MOLDEY</span>
-            <span className="text-[10px] text-gold-400/60 leading-tight">Centro de Operaciones</span>
+            <span className="text-base font-extrabold text-gold-400 tracking-widest leading-tight uppercase">CEO MOLDEY</span>
+            <span className="text-[9px] text-carbon-300 leading-tight tracking-wider uppercase">Centro de Operaciones</span>
           </div>
         </div>
 
