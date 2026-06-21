@@ -12,18 +12,17 @@ import {
   LogOut,
   Factory,
   Users,
-  Package,
-  FolderOpen,
   Image as ImageIcon,
   UserCog,
   Shield,
   CalendarDays,
   Bot,
   NotebookPen,
+  ShoppingBag,
 } from 'lucide-react';
 import GlobalSearch from './GlobalSearch';
 
-type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'inventory' | 'library' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes';
+type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes' | 'packs';
 
 interface LayoutProps {
   currentPage: Page;
@@ -47,10 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   { page: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { page: 'orders', label: 'Pedidos', icon: ClipboardList },
   { page: 'clients', label: 'Clientes', icon: Users },
+  { page: 'packs', label: 'Packs Moldey', icon: ShoppingBag },
   { page: 'agenda', label: 'Agenda', icon: CalendarDays, hiddenForPending: true },
   { page: 'ai-assistant', label: 'Asistente IA', icon: Bot, hiddenForPending: true },
-  { page: 'inventory', label: 'Inventario', icon: Package },
-  { page: 'library', label: 'Biblioteca', icon: FolderOpen },
   { page: 'catalog', label: 'Catálogo Interno', icon: ImageIcon },
   { page: 'personal', label: 'Personal', icon: UserCog },
   { page: 'finance', label: 'Finanzas', icon: DollarSign, hiddenForAsistente: true },

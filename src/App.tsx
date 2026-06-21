@@ -8,9 +8,8 @@ import NewOrder from './pages/NewOrder';
 import OrderDetail from './pages/OrderDetail';
 import Finance from './pages/Finance';
 import Clients from './pages/Clients';
-import Inventory from './pages/Inventory';
-import MoldLibrary from './pages/MoldLibrary';
 import InternalCatalog from './pages/InternalCatalog';
+import PacksMoldey from './pages/PacksMoldey';
 import Personal from './pages/Personal';
 import Agenda from './pages/Agenda';
 import AiAssistant from './pages/AiAssistant';
@@ -18,7 +17,7 @@ import UserManagement from './pages/UserManagement';
 import Notes from './pages/Notes';
 import Login from './pages/Login';
 
-type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'inventory' | 'library' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes';
+type Page = 'dashboard' | 'orders' | 'new-order' | 'finance' | 'order-detail' | 'clients' | 'catalog' | 'personal' | 'agenda' | 'ai-assistant' | 'users' | 'notes' | 'packs';
 
 function AppContent() {
   const { user, profile, isAdmin, loading, signOut } = useAuth();
@@ -47,7 +46,7 @@ function AppContent() {
       setSelectedOrderId(null);
       setSelectedModelId(null);
     }
-    if (page === 'library' && !modelId) {
+    if (!modelId) {
       setSelectedModelId(null);
     }
   };
@@ -70,10 +69,8 @@ function AppContent() {
         return <Clients onNavigate={handleNavigate} />;
       case 'finance':
         return <Finance />;
-      case 'inventory':
-        return <Inventory onNavigate={handleNavigate} />;
-      case 'library':
-        return <MoldLibrary modelId={selectedModelId || undefined} onNavigate={handleNavigate} />;
+      case 'packs':
+        return <PacksMoldey />;
       case 'catalog':
         return <InternalCatalog onNavigate={handleNavigate} />;
       case 'personal':
