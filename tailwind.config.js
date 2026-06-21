@@ -1,0 +1,88 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        // CEO MOLDEY primary palette — premium dark navy + gold
+        navy: {
+          50: '#E8EAF0',
+          100: '#C5CAD8',
+          200: '#9EA7BC',
+          300: '#7784A0',
+          400: '#5A6784',
+          500: '#3D4E6A',
+          600: '#2C3A54',
+          700: '#1E2A3F',
+          800: '#131C2E',
+          900: '#0A0F1E',
+        },
+        gold: {
+          50: '#FDF8E7',
+          100: '#FAF0C4',
+          200: '#F5E08A',
+          300: '#EFD060',
+          400: '#E8BF35',
+          500: '#D4AF37',
+          600: '#C9A227',
+          700: '#A8841A',
+          800: '#7D6212',
+          900: '#52400C',
+        },
+        carbon: {
+          50: '#F4F5F7',
+          100: '#E4E6EA',
+          200: '#C8CDD5',
+          300: '#A8B0BC',
+          400: '#8892A0',
+          500: '#687484',
+          600: '#4F5A68',
+          700: '#38424E',
+          800: '#232C38',
+          900: '#111827',
+        },
+
+        // Legacy aliases — map old Modeltex colors to MOLDEY equivalents
+        // so existing components render with the new brand without code changes
+        petrol: {
+          50: '#E8EAF0',
+          100: '#C5CAD8',
+          200: '#9EA7BC',
+          300: '#7784A0',
+          400: '#5A6784',
+          500: '#3D4E6A',
+          600: '#2C3A54',
+          700: '#1E2A3F',
+          800: '#131C2E',
+          900: '#0A0F1E',
+        },
+        violet: {
+          50: '#FDF8E7',
+          100: '#FAF0C4',
+          200: '#F5E08A',
+          300: '#EFD060',
+          400: '#E8BF35',
+          500: '#D4AF37',
+          600: '#C9A227',
+          700: '#A8841A',
+          800: '#7D6212',
+          900: '#52400C',
+        },
+        crudo: {
+          50: '#F4F5F7',
+          100: '#E4E6EA',
+          200: '#C8CDD5',
+          300: '#A8B0BC',
+          400: '#8892A0',
+          500: '#687484',
+          600: '#4F5A68',
+          700: '#38424E',
+          800: '#232C38',
+          900: '#111827',
+        },
+      },
+    },
+  },
+  plugins: [],
+};

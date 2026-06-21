@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, Oxygen, Ubuntu, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #D4AF37;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C9A227;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #3D4E6A;
+  }
+}
+
+@layer utilities {
+  .border-3 {
+    border-width: 3px;
+  }
+
+  /* Custom shadows for CEO MOLDEY cards */
+  .shadow-moldey {
+    box-shadow: 0 4px 12px rgba(10, 15, 30, 0.25), 0 2px 4px rgba(212, 175, 55, 0.08);
+  }
+
+  .shadow-moldey-lg {
+    box-shadow: 0 8px 24px rgba(10, 15, 30, 0.35), 0 4px 8px rgba(212, 175, 55, 0.12);
+  }
+
+  /* Keep legacy aliases so existing components don't break */
+  .shadow-modeltex {
+    box-shadow: 0 4px 12px rgba(10, 15, 30, 0.25), 0 2px 4px rgba(212, 175, 55, 0.08);
+  }
+
+  .shadow-modeltex-lg {
+    box-shadow: 0 8px 24px rgba(10, 15, 30, 0.35), 0 4px 8px rgba(212, 175, 55, 0.12);
+  }
+}
+
+/* Evitar que el autofill del navegador ponga fondo blanco */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #131C2E inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+}
+
+.finance-input {
+  @apply w-full px-3 py-2 bg-white dark:bg-carbon-900 border border-navy-200 dark:border-carbon-700 rounded-lg text-sm text-navy-800 dark:text-white placeholder-navy-400 focus:outline-none focus:ring-2 focus:ring-gold-500/60 focus:border-gold-400;
+}
+
+.savings-input {
+  @apply w-full px-3 py-2 bg-carbon-900 border border-carbon-700 rounded-lg text-sm text-white placeholder-carbon-500 focus:outline-none focus:ring-2 focus:ring-gold-500/60 focus:border-gold-500;
+}
