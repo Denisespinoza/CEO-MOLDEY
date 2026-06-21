@@ -32,27 +32,6 @@ interface Pack {
   updated_at: string;
 }
 
-// ─── Image compression ─────────────────────────────────────────────────────────
-// Comprime imagen a máx 600px y calidad 0.7 antes de guardar
-function compressImage(base64: string, maxPx = 600, quality = 0.72): Promise<string> {
-  return new Promise((resolve) => {
-    if (!base64 || !base64.startsWith('data:image')) { resolve(base64); return; }
-    const img = new window.Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve(base64);
-    img.src = base64;
-  });
-}
-
 // ─── localStorage helpers ───────────────────────────────────────────────────────
 const PACKS_KEY = 'moldey_packs';
 function getPacks(): Pack[] {
@@ -98,31 +77,43 @@ const CATEGORY_LABELS: Record<MoldeCategory, string> = {
 
 const EMPTY_ITEM: PackItem = { id: '', image: '', name: '', sizes: '', category: 'dama', code: '' };
 
-// ─── Image uploader helper ─────────────────────────────────────────────────────
+// ─── Image uploader helper — sube a Cloudflare R2 ──────────────────────────────
+async function uploadToR2(file: File): Promise<string> {
+  const path = `packs-moldey/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('path', path);
+  const res = await fetch('/api/r2-upload', { method: 'POST', body: fd });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Error al subir imagen: ${err}`);
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
 function ImageUploader({ value, onChange, className = '', placeholder = 'Subir imagen' }: {
   value: string;
-  onChange: (base64: string) => void;
+  onChange: (url: string) => void;
   className?: string;
   placeholder?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
+    setUploadError('');
     try {
-      const reader = new FileReader();
-      const raw = await new Promise<string>((res, rej) => {
-        reader.onload = ev => res(ev.target?.result as string ?? '');
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const compressed = await compressImage(raw);
-      onChange(compressed);
+      const url = await uploadToR2(file);
+      onChange(url);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Error al subir imagen');
     } finally {
       setLoading(false);
-      // reset input so same file can be re-selected
       if (ref.current) ref.current.value = '';
     }
   };
@@ -135,7 +126,13 @@ function ImageUploader({ value, onChange, className = '', placeholder = 'Subir i
       {loading ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-gold-400">
           <div className="w-6 h-6 border-2 border-gold-400 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs">Comprimiendo...</span>
+          <span className="text-xs">Subiendo a Cloudflare...</span>
+        </div>
+      ) : uploadError ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-red-400">
+          <AlertCircle size={20} />
+          <span className="text-xs text-center">{uploadError}</span>
+          <span className="text-xs text-carbon-500">Clic para reintentar</span>
         </div>
       ) : value ? (
         <>
