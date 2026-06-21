@@ -32,20 +32,53 @@ interface Pack {
   updated_at: string;
 }
 
+// ─── Image compression ─────────────────────────────────────────────────────────
+// Comprime imagen a máx 600px y calidad 0.7 antes de guardar
+function compressImage(base64: string, maxPx = 600, quality = 0.72): Promise<string> {
+  return new Promise((resolve) => {
+    if (!base64 || !base64.startsWith('data:image')) { resolve(base64); return; }
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
+}
+
 // ─── localStorage helpers ───────────────────────────────────────────────────────
 const PACKS_KEY = 'moldey_packs';
 function getPacks(): Pack[] {
   try { return JSON.parse(localStorage.getItem(PACKS_KEY) ?? '[]'); } catch { return []; }
 }
-function savePacks(packs: Pack[]) { localStorage.setItem(PACKS_KEY, JSON.stringify(packs)); }
-function createPack(data: Omit<Pack, 'id' | 'created_at' | 'updated_at'>): Pack {
+function savePacks(packs: Pack[]): void {
+  try {
+    localStorage.setItem(PACKS_KEY, JSON.stringify(packs));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // QuotaExceededError — lanzar error legible para el usuario
+    throw new Error(`No se pudo guardar: espacio insuficiente en el navegador. Intentá con imágenes más pequeñas.\n(${msg})`);
+  }
+}
+function createPackSync(data: Omit<Pack, 'id' | 'created_at' | 'updated_at'>): Pack {
   const now = new Date().toISOString();
   const p: Pack = { ...data, id: Date.now().toString(), created_at: now, updated_at: now };
-  savePacks([...getPacks(), p]); return p;
+  savePacks([...getPacks(), p]);
+  return p;
 }
-function updatePack(id: string, data: Partial<Omit<Pack, 'id' | 'created_at'>>): Pack {
-  const packs = getPacks().map(p => p.id === id ? { ...p, ...data, updated_at: new Date().toISOString() } : p);
-  savePacks(packs); return packs.find(p => p.id === id)!;
+function updatePackSync(id: string, data: Partial<Omit<Pack, 'id' | 'created_at'>>): Pack {
+  const packs = getPacks().map(p =>
+    p.id === id ? { ...p, ...data, updated_at: new Date().toISOString() } : p
+  );
+  savePacks(packs);
+  return packs.find(p => p.id === id)!;
 }
 function deletePack(id: string) { savePacks(getPacks().filter(p => p.id !== id)); }
 
@@ -73,12 +106,25 @@ function ImageUploader({ value, onChange, className = '', placeholder = 'Subir i
   placeholder?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [loading, setLoading] = useState(false);
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => onChange(ev.target?.result as string ?? '');
-    reader.readAsDataURL(file);
+    setLoading(true);
+    try {
+      const reader = new FileReader();
+      const raw = await new Promise<string>((res, rej) => {
+        reader.onload = ev => res(ev.target?.result as string ?? '');
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const compressed = await compressImage(raw);
+      onChange(compressed);
+    } finally {
+      setLoading(false);
+      // reset input so same file can be re-selected
+      if (ref.current) ref.current.value = '';
+    }
   };
   return (
     <div
@@ -86,7 +132,12 @@ function ImageUploader({ value, onChange, className = '', placeholder = 'Subir i
       onClick={() => ref.current?.click()}
     >
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      {value ? (
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-gold-400">
+          <div className="w-6 h-6 border-2 border-gold-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs">Comprimiendo...</span>
+        </div>
+      ) : value ? (
         <>
           <img src={value} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -225,20 +276,26 @@ function PackModal({ pack, onClose, onSave }: {
     return e;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
-    if (errs.some(e => e.includes('obligatorio'))) { setErrors(errs); return; }
-    setErrors(errs); // warnings non-blocking
+    if (errs.some(err => err.includes('obligatorio'))) { setErrors(errs); return; }
+    setErrors(errs);
     setSaving(true);
     try {
-      // Limpiar items vacíos al guardar
-      const cleanItems = form.items.filter(i => i.name.trim()).map(i => ({
-        ...i,
-        id: i.id.startsWith('new_') ? Date.now().toString() + Math.random() : i.id,
-      }));
+      // Limpiar items vacíos al guardar y asignar IDs definitivos
+      const cleanItems = form.items
+        .filter(i => i.name.trim())
+        .map(i => ({
+          ...i,
+          id: i.id.startsWith('new_') ? `item_${Date.now()}_${Math.random().toString(36).slice(2)}` : i.id,
+        }));
       onSave({ ...form, items: cleanItems });
       onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido al guardar.';
+      setErrors(prev => [...prev.filter(e => !e.startsWith('No se pudo guardar')), `❌ ${msg}`]);
+      // NO cerramos el modal — el usuario puede intentar de nuevo
     } finally {
       setSaving(false);
     }
@@ -525,8 +582,9 @@ export default function PacksMoldey() {
   useEffect(() => { load(); }, []);
 
   const handleSave = (data: Omit<Pack, 'id' | 'created_at' | 'updated_at'>) => {
-    if (editingPack) updatePack(editingPack.id, data);
-    else createPack(data);
+    // Puede lanzar error si localStorage está lleno — el modal lo captura y muestra al usuario
+    if (editingPack) updatePackSync(editingPack.id, data);
+    else createPackSync(data);
     load();
     setEditingPack(null);
   };
