@@ -24,7 +24,59 @@ import {
 } from '../lib/agendaMoldey';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ActiveView = 'kanban' | 'lista' | 'lanzamientos' | 'campanas' | 'produccion' | 'pedidos' | 'gratis' | 'ventas';
+type ActiveView = 'kanban' | 'kanban-op' | 'lista' | 'lanzamientos' | 'campanas' | 'produccion' | 'pedidos' | 'gratis' | 'ventas';
+
+// ─── KANBAN OP Types ──────────────────────────────────────────────────────────
+type OpStatus = 'pendiente' | 'en_proceso' | 'en_revision' | 'esperando' | 'terminado';
+type OpType = 'tarea_interna' | 'seguimiento' | 'correccion' | 'pedido_rapido' | 'administracion' | 'cliente' | 'producto' | 'publicacion' | 'otro';
+
+interface OpTask {
+  id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  status: OpStatus;
+  due_date: string | null;
+  responsible: string;
+  simple_type: OpType;
+  notes: string;
+  created_at: string;
+}
+
+const OP_COLUMNS: { id: OpStatus; label: string; color: string }[] = [
+  { id: 'pendiente',    label: 'Pendiente',    color: 'bg-carbon-800 border-carbon-600' },
+  { id: 'en_proceso',   label: 'En proceso',   color: 'bg-blue-900/30 border-blue-700/40' },
+  { id: 'en_revision',  label: 'En revisión',  color: 'bg-amber-900/20 border-amber-700/30' },
+  { id: 'esperando',    label: 'Esperando',    color: 'bg-navy-700 border-navy-500' },
+  { id: 'terminado',    label: 'Terminado',    color: 'bg-emerald-900/20 border-emerald-700/30' },
+];
+
+const OP_TYPE_LABELS: Record<OpType, string> = {
+  tarea_interna: 'Tarea interna', seguimiento: 'Seguimiento', correccion: 'Corrección',
+  pedido_rapido: 'Pedido rápido', administracion: 'Administración', cliente: 'Cliente',
+  producto: 'Producto', publicacion: 'Publicación', otro: 'Otro',
+};
+
+const EMPTY_OP_TASK: Omit<OpTask, 'id' | 'created_at'> = {
+  title: '', description: '', priority: 'media', status: 'pendiente',
+  due_date: null, responsible: '', simple_type: 'tarea_interna', notes: '',
+};
+
+// ─── KANBAN OP localStorage helpers ──────────────────────────────────────────
+const OP_KEY = 'moldey_op_tasks';
+function getOpTasks(): OpTask[] {
+  try { return JSON.parse(localStorage.getItem(OP_KEY) ?? '[]'); } catch { return []; }
+}
+function saveOpTasks(tasks: OpTask[]) { localStorage.setItem(OP_KEY, JSON.stringify(tasks)); }
+function createOpTask(data: Omit<OpTask, 'id' | 'created_at'>): OpTask {
+  const t: OpTask = { ...data, id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(), created_at: new Date().toISOString() };
+  saveOpTasks([...getOpTasks(), t]); return t;
+}
+function updateOpTask(id: string, data: Partial<Omit<OpTask, 'id' | 'created_at'>>): OpTask {
+  const tasks = getOpTasks().map(t => t.id === id ? { ...t, ...data } : t);
+  saveOpTasks(tasks); return tasks.find(t => t.id === id)!;
+}
+function deleteOpTask(id: string) { saveOpTasks(getOpTasks().filter(t => t.id !== id)); }
 
 interface Filters {
   search: string;
@@ -1291,6 +1343,168 @@ function VentasView({ tasks }: { tasks: MoldeyTask[] }) {
   );
 }
 
+// ─── OP TASK MODAL ────────────────────────────────────────────────────────────
+function OpTaskModal({ task, defaultStatus, onClose, onSave }: {
+  task: OpTask | null;
+  defaultStatus?: OpStatus;
+  onClose: () => void;
+  onSave: (data: Omit<OpTask, 'id' | 'created_at'>) => void;
+}) {
+  const [form, setForm] = useState<Omit<OpTask, 'id' | 'created_at'>>(
+    task ? { title: task.title, description: task.description, priority: task.priority,
+              status: task.status, due_date: task.due_date, responsible: task.responsible,
+              simple_type: task.simple_type, notes: task.notes }
+         : { ...EMPTY_OP_TASK, status: defaultStatus ?? 'pendiente' }
+  );
+  const set = (f: string, v: unknown) => setForm(p => ({ ...p, [f]: v }));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    onSave(form);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-navy-900 border border-navy-600 rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-navy-700">
+          <h2 className="text-white font-bold text-base">{task ? 'Editar tarea operativa' : 'Nueva tarea operativa'}</h2>
+          <button onClick={onClose} className="text-carbon-400 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div>
+            <label className={LABEL_CLS}>Título *</label>
+            <input className={INPUT_CLS} value={form.title} onChange={e => set('title', e.target.value)} placeholder="¿Qué hay que hacer?" required autoFocus />
+          </div>
+          <div>
+            <label className={LABEL_CLS}>Descripción</label>
+            <textarea className={INPUT_CLS} rows={2} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Detalles opcionales..." />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL_CLS}>Tipo</label>
+              <select className={INPUT_CLS} value={form.simple_type} onChange={e => set('simple_type', e.target.value as OpType)}>
+                {Object.entries(OP_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Estado</label>
+              <select className={INPUT_CLS} value={form.status} onChange={e => set('status', e.target.value as OpStatus)}>
+                {OP_COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Prioridad</label>
+              <select className={INPUT_CLS} value={form.priority} onChange={e => set('priority', e.target.value as Priority)}>
+                {Object.entries(PRIORITY_CONFIG).map(([v, c]) => <option key={v} value={v}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Fecha límite</label>
+              <input type="date" className={INPUT_CLS} value={form.due_date ?? ''} onChange={e => set('due_date', e.target.value || null)} />
+            </div>
+          </div>
+          <div>
+            <label className={LABEL_CLS}>Responsable</label>
+            <input className={INPUT_CLS} value={form.responsible} onChange={e => set('responsible', e.target.value)} placeholder="¿Quién lo hace?" />
+          </div>
+          <div>
+            <label className={LABEL_CLS}>Notas</label>
+            <textarea className={INPUT_CLS} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Observaciones internas..." />
+          </div>
+          <div className="flex justify-end gap-3 pt-2 border-t border-navy-700">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-carbon-400 hover:text-white border border-navy-600 rounded-lg hover:bg-navy-700 transition-colors">Cancelar</button>
+            <button type="submit" className="px-5 py-2 bg-gold-600 hover:bg-gold-500 text-navy-900 rounded-lg font-bold text-sm transition-colors">
+              {task ? 'Guardar cambios' : 'Crear tarea'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── KANBAN OP VIEW ───────────────────────────────────────────────────────────
+function KanbanOpView({ tasks, onEdit, onDelete, onAddToColumn }: {
+  tasks: OpTask[];
+  onEdit: (t: OpTask) => void;
+  onDelete: (id: string) => void;
+  onAddToColumn: (status: OpStatus) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (tasks.length === 0 && OP_COLUMNS.every(c => true)) {
+    // Still show columns even when empty
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-carbon-500 italic">Kanban operativo para tareas del día a día — rápido y simple.</p>
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {OP_COLUMNS.map(col => {
+          const colTasks = tasks.filter(t => t.status === col.id);
+          return (
+            <div key={col.id} className={`flex-shrink-0 w-60 rounded-xl border ${col.color} p-3 flex flex-col gap-2`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-white uppercase tracking-wide">{col.label}</span>
+                <span className="text-xs bg-navy-800 text-carbon-400 px-1.5 py-0.5 rounded-full">{colTasks.length}</span>
+              </div>
+
+              <div className="flex flex-col gap-2 min-h-[50px]">
+                {colTasks.length === 0 && (
+                  <p className="text-xs text-carbon-600 text-center py-3 italic">Sin tareas</p>
+                )}
+                {colTasks.map(task => {
+                  const pc = PRIORITY_CONFIG[task.priority];
+                  const overdue = task.due_date && task.due_date < today && col.id !== 'terminado';
+                  return (
+                    <div
+                      key={task.id}
+                      className="bg-navy-800 border border-navy-600 hover:border-gold-500/40 rounded-lg p-2.5 group"
+                    >
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <p className="text-white text-xs font-semibold leading-snug group-hover:text-gold-300 transition-colors flex-1">{task.title}</p>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <button onClick={() => onEdit(task)} className="text-carbon-500 hover:text-gold-400 transition-colors"><Edit2 size={11} /></button>
+                          <button onClick={() => { if (confirm('¿Eliminar esta tarea?')) onDelete(task.id); }} className="text-carbon-500 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${pc.dot}`} />
+                        <span className={`text-[10px] ${pc.color}`}>{pc.label}</span>
+                        <span className="text-[10px] text-carbon-600">·</span>
+                        <span className="text-[10px] text-carbon-500">{OP_TYPE_LABELS[task.simple_type]}</span>
+                      </div>
+                      {task.due_date && (
+                        <div className={`flex items-center gap-1 text-[10px] ${overdue ? 'text-red-400' : 'text-carbon-500'}`}>
+                          {overdue && <AlertCircle size={9} />}
+                          <Clock size={9} />
+                          {task.due_date}
+                        </div>
+                      )}
+                      {task.responsible && (
+                        <p className="text-[10px] text-carbon-500 mt-0.5">👤 {task.responsible}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => onAddToColumn(col.id)}
+                className="mt-1 flex items-center justify-center gap-1 text-xs text-carbon-500 hover:text-gold-400 transition-colors py-1.5 rounded-lg hover:bg-navy-700/50 border border-dashed border-navy-600 hover:border-gold-500/40"
+              >
+                <Plus size={12} /> Agregar
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AgendaMoldey() {
   const [activeView, setActiveView] = useState<ActiveView>('kanban');
@@ -1316,6 +1530,32 @@ export default function AgendaMoldey() {
 
   const [filters, setFilters] = useState<Filters>({ search: '', priority: '', taskType: '', category: '' });
 
+  // ── Kanban OP state ──
+  const [opTasks, setOpTasks] = useState<OpTask[]>([]);
+  const [showOpModal, setShowOpModal] = useState(false);
+  const [editingOpTask, setEditingOpTask] = useState<OpTask | null>(null);
+  const [defaultOpStatus, setDefaultOpStatus] = useState<OpStatus | undefined>();
+  const [opSearch, setOpSearch] = useState('');
+  const [opPriority, setOpPriority] = useState('');
+
+  const loadOpTasks = useCallback(() => { setOpTasks(getOpTasks()); }, []);
+
+  const handleSaveOpTask = (data: Omit<OpTask, 'id' | 'created_at'>) => {
+    if (editingOpTask) updateOpTask(editingOpTask.id, data);
+    else createOpTask(data);
+    loadOpTasks();
+    setEditingOpTask(null);
+    setDefaultOpStatus(undefined);
+  };
+
+  const handleDeleteOpTask = (id: string) => { deleteOpTask(id); loadOpTasks(); };
+
+  const filteredOpTasks = opTasks.filter(t => {
+    if (opSearch && !t.title.toLowerCase().includes(opSearch.toLowerCase())) return false;
+    if (opPriority && t.priority !== opPriority) return false;
+    return true;
+  });
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -1332,7 +1572,7 @@ export default function AgendaMoldey() {
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { loadAll(); loadOpTasks(); }, [loadAll, loadOpTasks]);
 
   // Filtered tasks
   const filteredTasks = tasks.filter(t => {
@@ -1448,6 +1688,7 @@ export default function AgendaMoldey() {
 
   const VIEWS: { id: ActiveView; label: string }[] = [
     { id: 'kanban', label: 'Kanban' },
+    { id: 'kanban-op', label: '⚡ Kanban OP' },
     { id: 'lista', label: 'Lista' },
     { id: 'lanzamientos', label: 'Lanzamientos' },
     { id: 'campanas', label: 'Campañas' },
@@ -1469,6 +1710,15 @@ export default function AgendaMoldey() {
             className="flex items-center gap-2 px-4 py-2 bg-gold-600 hover:bg-gold-500 text-navy-900 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-gold-600/20"
           >
             <Plus size={16} /> Nueva tarea
+          </button>
+        );
+      case 'kanban-op':
+        return (
+          <button
+            onClick={() => { setEditingOpTask(null); setDefaultOpStatus(undefined); setShowOpModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-gold-600 hover:bg-gold-500 text-navy-900 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-gold-600/20"
+          >
+            <Plus size={16} /> Tarea rápida
           </button>
         );
       case 'lanzamientos':
@@ -1614,6 +1864,30 @@ export default function AgendaMoldey() {
           {activeView === 'kanban' && (
             <KanbanView tasks={filteredTasks} onCardClick={handleEditTask} onAddColumn={handleAddToColumn} />
           )}
+          {activeView === 'kanban-op' && (
+            <div className="space-y-3">
+              {/* OP Filters */}
+              <div className="flex flex-wrap gap-3">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-carbon-500" />
+                  <input className={`${INPUT_CLS} pl-8`} placeholder="Buscar tarea operativa..." value={opSearch} onChange={e => setOpSearch(e.target.value)} />
+                </div>
+                <select className={`${INPUT_CLS} w-auto min-w-[120px]`} value={opPriority} onChange={e => setOpPriority(e.target.value)}>
+                  <option value="">Prioridad</option>
+                  {Object.entries(PRIORITY_CONFIG).map(([v, c]) => <option key={v} value={v}>{c.label}</option>)}
+                </select>
+                {(opSearch || opPriority) && (
+                  <button onClick={() => { setOpSearch(''); setOpPriority(''); }} className="px-3 py-2 text-xs text-carbon-400 hover:text-white border border-navy-600 rounded-lg hover:bg-navy-700 transition-colors">Limpiar</button>
+                )}
+              </div>
+              <KanbanOpView
+                tasks={filteredOpTasks}
+                onEdit={t => { setEditingOpTask(t); setShowOpModal(true); }}
+                onDelete={handleDeleteOpTask}
+                onAddToColumn={status => { setEditingOpTask(null); setDefaultOpStatus(status); setShowOpModal(true); }}
+              />
+            </div>
+          )}
           {activeView === 'lista' && (
             <ListView tasks={filteredTasks} onEdit={handleEditTask} onDelete={handleDeleteTask} />
           )}
@@ -1655,6 +1929,14 @@ export default function AgendaMoldey() {
       )}
 
       {/* Modals */}
+      {showOpModal && (
+        <OpTaskModal
+          task={editingOpTask}
+          defaultStatus={defaultOpStatus}
+          onClose={() => { setShowOpModal(false); setEditingOpTask(null); setDefaultOpStatus(undefined); }}
+          onSave={handleSaveOpTask}
+        />
+      )}
       {showTaskModal && (
         <TaskModal
           task={editingTask}
